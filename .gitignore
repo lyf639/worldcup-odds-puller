@@ -1,0 +1,9 @@
+# 拉取产出的数据文件（含赔率快照，不传仓库）
+latest.json
+latest.txt
+*.json
+*.txt
+
+# Python
+__pycache__/
+*.pyc
