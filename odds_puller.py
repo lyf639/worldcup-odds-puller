@@ -14,7 +14,7 @@ from datetime import datetime
 OUTPUT_DIR = r"D:\odds"
 OUTPUT_FILE = "latest.json"
 MATCH_LIST_URL = "https://webapi.sporttery.cn/gateway/uniform/football/getMatchListV1.qry?clientCode=3001"
-CALCULATOR_URL = "https://webapi.sporttery.cn/gateway/uniform/football/getMatchCalculatorV1.qry?channel=c&poolCode=hhad,had,hafu,ttg,crs"
+CALCULATOR_URL = "https://webapi.sporttery.cn/gateway/uniform/football/getMatchCalculatorV1.qry?clientCode=3001&channel=c&poolCode=hhad,had,hafu,ttg,crs"
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
@@ -22,6 +22,15 @@ HEADERS = {
     "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
     "Referer": "https://www.sporttery.cn/",
     "Origin": "https://www.sporttery.cn",
+}
+
+# Calculator 接口需要移动端 Referer，否则触发 WAF
+CALC_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+    "Accept": "application/json, text/plain, */*",
+    "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+    "Referer": "https://m.sporttery.cn/mjc/jsq/zqspf/",
+    "Origin": "https://m.sporttery.cn",
 }
 
 # ── 工具函数 ──────────────────────────
@@ -52,6 +61,11 @@ def fetch_json(url, headers=None, timeout=15):
 
     r = requests.get(url, headers=h, timeout=timeout)
 
+    # 检查是否被 WAF 拦截
+    if r.status_code == 403 or len(r.text) < 200:
+        if "WAF" in r.text or "拦截" in r.text:
+            raise RuntimeError("请求被 WAF 拦截，稍后重试")
+
     # 尝试多种编码
     for encoding in ['utf-8', 'gbk', 'gb2312', 'gb18030']:
         try:
@@ -62,6 +76,21 @@ def fetch_json(url, headers=None, timeout=15):
 
     # 最后尝试
     return r.json()
+
+
+def fetch_calculator(url, timeout=15, retries=2):
+    """拉取 Calculator 接口，带重试和 WAF 规避"""
+    import time
+    last_err = None
+    for attempt in range(retries + 1):
+        try:
+            if attempt > 0:
+                time.sleep(2 + attempt)  # 退避等待
+            return fetch_json(url, headers=CALC_HEADERS.copy(), timeout=timeout)
+        except RuntimeError as e:
+            last_err = e
+            continue
+    raise last_err or RuntimeError("Calculator 接口不可用")
 
 
 def parse_match_list(data):
@@ -261,7 +290,7 @@ def main():
     print("[2/2] 拉取详细赔率（半全场/总进球）...")
     calc_info = {}
     try:
-        data2 = fetch_json(CALCULATOR_URL)
+        data2 = fetch_calculator(CALCULATOR_URL)
         calc_info, calc_err = parse_calculator(data2)
         if calc_err:
             print(f"  ⚠️ 详细赔率不可用: {calc_err}")
