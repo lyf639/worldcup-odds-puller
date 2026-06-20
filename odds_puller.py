@@ -237,10 +237,22 @@ def format_display(matches):
             hh = m["hhad"]
             lines.append(f"让球({hh['goalLine']:+.0f}): {hh['h']}/{hh['d']}/{hh['a']}")
 
-        if m.get("ttg_raw"):
+        # 总进球：优先用 Calculator 结构数据，否则用原始字符串
+        if m.get("ttg"):
+            ttg = m["ttg"]
+            vals = [f"{k}:{v}" for k, v in ttg.items() if v is not None]
+            if vals:
+                lines.append(f"总进球: {', '.join(vals)}")
+        elif m.get("ttg_raw"):
             lines.append(f"总进球: {m['ttg_raw']}")
 
-        if m.get("hafu_raw"):
+        # 半全场：优先用 Calculator 结构数据
+        if m.get("hafu"):
+            hafu = m["hafu"]
+            vals = [f"{k}:{v}" for k, v in hafu.items() if v is not None]
+            if vals:
+                lines.append(f"半全场: {', '.join(vals)}")
+        elif m.get("hafu_raw"):
             lines.append(f"半全场: {m['hafu_raw']}")
 
     # 其余联赛：折叠为一行
